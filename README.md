@@ -8,7 +8,7 @@ xrayinspect is intended to help automate measurements on large sets of DICOM ima
 	
 steps over each DICOM file and appends PatientID, ExposureIndex, DeviationIndex, and Signal and Noise for each selected ROI to the file called Relevant_Anatomy.csv.
 
-It is also possible to generate histograms of a region of interest or simply view an image. A secondary purpose of xrayinspect is to be a simple DICOM image viewer, since I am not aware of a DICOM viewer for GNU/Linux.
+It is also possible to generate histograms of a region of interest or simply view an image. A secondary purpose of xrayinspect is to be a simple DICOM image viewer, since there are few DICOM viewers for GNU/Linux.
 
 Lastly, xrayinspect was written to fit specific research needs. Although it is a very general tool, it is not guaranteed to be a solution for everyone, but hopefully it will save someone some trouble.
 
