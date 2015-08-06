@@ -1,0 +1,302 @@
+#!/usr/bin/env python
+
+import sys, dicom
+import numpy as np
+import matplotlib.mlab as mlab
+import matplotlib.pyplot as plt
+import scipy.stats
+from matplotlib.patches import Rectangle
+
+def get_help():
+	usage = """
+
+	Usage: xrayinspect [Options] [Files]
+
+	Options:
+		--help
+			Display this message and exit.
+			
+		-a
+			Display all available attributes for the image and their values. This is the best way to access the metadata.
+			
+		-e [Attributes]
+			Write out the values of the specified attributes in comma separated format in addition to any ROI information.
+			All attributes are case sensitive. For example,
+			
+				xrayinspect -e PatientName PatientID TargetExposureIndex DeviationIndex xray.dcm
+				'Bunsen Honeydew', 12345678, 400, 3.14
+		
+		-E
+			Equivalent to -e AccessionNumber KVP XRayTubeCurrent TargetExposureIndex ExposureIndex DeviationIndex
+		
+		-h
+			Display a histogram of the specified ROI.
+		
+		-r *kwargs
+			If no argument is given, graphically specify a rectangular ROI. If -e or -E is also used, mean pixel value and
+			standard deviation will be appended to the output data.
+			
+			If the keyword 'all' is used, the entire image will be selected as the ROI.
+			
+		--fixed-size
+			Use with -r to specify square ROIs of constant size.
+		
+		-m
+			Write out the raw metadata. This is often messy and it is recommended to use -a instead or pipe to grep.
+			
+		-s
+			Display the specified image(s).
+			
+	xrayinspect was written by Zak Merritt (zfm001@jefferson.edu) using the pydicom package written by darcymason (https://github.com/darcymason).
+	For more information, see readme file.
+	"""
+	print usage
+
+class region_of_interest:
+	def __init__(self,a=None,b=None,c=None,d=None):
+		self.x0 = a
+		self.y0 = b
+		self.x1 = c
+		self.y1 = d
+	
+	def Set_Boundaries(self, a, b, c, d):
+		self.x0 = a
+		self.y0 = b
+		self.x1 = c
+		self.y1 = d
+
+class draw_roi_rectangle(object):
+	def __init__(self):
+		self.ax = plt.gca()
+		self.rect = Rectangle((0,0), 1, 1)
+		self.x0 = None
+		self.y0 = None
+		self.x1 = None
+		self.y1 = None
+		self.is_pressed = False
+		self.ax.add_patch(self.rect)
+		self.ax.figure.canvas.mpl_connect('button_press_event', self.on_press)
+		self.ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
+		self.ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+		
+	def on_press(self, event):
+		self.is_pressed = True
+		self.x0 = event.xdata
+		self.y0 = event.ydata
+		if opts['--fixed-size']:
+			#72 pixels is approximately 10mm in my datasets.
+			self.rect.set_width(72)
+			self.rect.set_height(72)
+			self.rect.set_xy((self.x0 - 36, self.y0 - 36))
+			self.rect.set_alpha(0.1)
+			self.rect.set_linestyle('dashed')
+			self.ax.figure.canvas.draw()
+			
+			R.Set_Boundaries(int(round(self.x0-36)), int(round(self.y0-36)), int(round(self.x0+36)), int(round(self.y0+36)))
+	
+	def on_release(self, event):
+		if not opts['--fixed-size']:
+			self.is_pressed = False
+			
+			self.x1 = event.xdata
+			self.y1 = event.ydata
+			self.rect.set_width(self.x1 - self.x0)
+			self.rect.set_height(self.y1 - self.y0)
+			self.rect.set_xy((self.x0, self.y0))
+			self.rect.set_alpha(0.1)
+			self.rect.set_linestyle('dashed')
+			self.ax.figure.canvas.draw()
+			
+			R.Set_Boundaries(int(round(self.x0)), int(round(self.y0)), int(round(self.x1)), int(round(self.y1)))
+	
+	def on_motion(self, event):
+		if self.is_pressed and not opts['--fixed-size']:
+			self.x1 = event.xdata
+			self.y1 = event.ydata
+			self.rect.set_width(self.x1 - self.x0)
+			self.rect.set_height(self.y1 - self.y0)
+			self.rect.set_xy((self.x0, self.y0))
+			self.rect.set_linestyle('dashed')
+			self.rect.set_alpha(0.1)
+			self.ax.figure.canvas.draw()
+			
+def get_dcm(filein):
+	try:
+		img = dicom.read_file(filein)
+		return img
+	except NotImplementedError:
+		print filein + " is likely a compressed image. Unable to read data."
+		return None
+	except IOError:
+		print "No such file or directory: " + filein
+		return None
+	
+def show_dcm(image, draw_roi = False):
+	plt.axes().set_aspect('equal', 'datalim')
+	plt.imshow(image.pixel_array)
+	plt.set_cmap(plt.gray())
+	
+	try:
+		plt.gcf().canvas.set_window_title(image.PatientName + " - View: " + image.ViewPosition)
+	except AttributeError:
+		plt.gcf().canvas.set_window_title(arg)
+		
+	try:
+		#default XRayTubeCurrent should be in mAs but this is not true for some portable units it appears.
+		plt.title("Technique: " + str(image.KVP) + "kVP; " + str(image.XRayTubeCurrent) + "mAs\nEI: " + str(image.ExposureIndex) + " (" + str(image.DeviationIndex) + ")")
+	except AttributeError:
+		plt.title("Could not get technique data.")
+	
+	if draw_roi:
+		a = draw_roi_rectangle()
+	
+	plt.show()
+
+def make_histogram(data, xaxis = '$Variable\ of\ Interest$', htitle = 'Histogram of Variable', z=3):
+	#Display a histogram of input data. Input 'data' must be a rank-1 numpy array.
+	N = len(data)
+	mu = np.mean(data)
+	sigma = np.std(data)
+	if sigma == 0:
+		print 'Standard deviation computed to be zero. Could not plot histogram. Mean = ' + str(mu) + '. N = ' + str(N) + '.'
+		return None
+	skew = scipy.stats.skew(data)
+	if N > 7:
+		skew_p = scipy.stats.skewtest(data)
+	else:
+		skew_p = "?"
+		print "NOTE: skewtest() is not valid for less than 8 samples. Value set to '?'."
+	kurtosis = scipy.stats.kurtosis(data)
+	try:
+		kurtosis_p = scipy.stats.kurtosistest(data)
+		if N < 20:
+			print "Warning: kurtosistest() is only valid for N >= 20. N =" + str(N) + ". Proceeding anyway..."
+	except ZeroDivisionError:
+		kertosis_p = '?'
+		print "Warning: kurtosistest() failed with ZeroDivisionError. Value set to '?'."
+	
+	#compute the bin size based on the standard deviation.
+	bins = ()
+	i = mu - sigma * z
+	while i <= mu + sigma * z:
+		bins += tuple([i])
+		i += sigma * 0.1
+	
+	plt.hist(data, bins, normed=True)
+	y = mlab.normpdf(bins, mu, sigma)
+	plt.plot(bins, y, 'r--')
+	
+	plt.xlabel(xaxis)
+	plt.ylabel('$Probability$')
+	plt.title(htitle)
+	
+	xmin, xmax = plt.xlim()
+	ymin, ymax = plt.ylim()
+	#next line annotates the figure with the statistics from above.
+	plt.text(xmin * 1.1, ymax * 0.75, r'$N=' + str(N) + '$\n$\mu= ' + str(round(mu,4)) + '$\n$\sigma=' + str(round(sigma,4)) + '$' + '\n$Skew=' + str(round(skew,4)) + ';\ p=' + str(round(skew_p[1],4)) + '$\n$Kurtosis=' + str(round(kurtosis,4)) + ';\ p=' + str(round(kurtosis_p[1],4)) + '$')
+	plt.grid(True)
+	plt.show()
+
+def roi_analyze(image, whole_image = False):
+	if not whole_image:
+		show_dcm(image, True)
+		
+		roi = image.pixel_array[R.y0:R.y1, R.x0:R.x1]
+	else:
+		roi = image.pixel_array
+	
+	return np.mean(roi), np.std(roi), roi
+
+def get_opts(args):
+	#because i'm a noob and didn't know there was a getopt module :P
+	for key in opts.keys():
+		if key in args:
+			opts[key] = True
+
+if __name__ == "__main__":
+	opts = {'-s':False, '-m':False, '-r':False, '-h':False, '-a':False, '-e':False, '-E':False, '--fixed-size':False}
+	
+	if '--help' in sys.argv or len(sys.argv) == 1:
+		get_help()
+		sys.exit(0)
+	
+	get_opts(sys.argv)
+	
+	R = region_of_interest()
+	#before the main loop, get column headers for CSV purposes.
+	if opts['-e'] or opts['-E']:
+		if opts['-e']:
+			attr_list = []
+			for i in xrange(sys.argv.index('-e') + 1, len(sys.argv)):
+				if sys.argv[i] in opts.keys() or '.dcm' in sys.argv[i]:
+					break
+				else:
+					if not sys.argv[i] in attr_list:
+						attr_list.append(sys.argv[i])
+		else:
+			attr_list = ['AccessionNumber', 'KVP', 'XRayTubeCurrent', 'TargetExposureIndex', 'ExposureIndex', 'DeviationIndex']
+		
+		if opts['-r']:
+			attr_list.append('Mean')
+			attr_list.append('Std')
+			print str(attr_list).strip("[]")
+		else:
+			print str(attr_list).strip("[]")
+				
+	#The main loop where files are processed.
+	for arg in sys.argv:
+		if '.dcm' in arg:
+			D = get_dcm(arg)
+		else:
+			D = None
+			
+		if D == None:
+			continue
+		else:
+			if opts['-s']:
+				show_dcm(D)
+			
+			if opts['-a']:
+				for a in dir(D):
+					#ignore attributes with 'Pixel' because there are several
+					#that are unintelligible and I mostly care about exposure data.
+					if not a.startswith("_") and not 'Pixel' in a:
+						try:
+							print a + ":    " + str(eval("D.%s" % a))
+						except AttributeError:
+							continue
+						#XRayTubeCurrent is the last attribute before what might be pixel data.
+						#consider using Stop_Before_Pixel boolean in pydicom. However, there may
+						#be more information after the pixel data?
+						if a == 'XRayTubeCurrent':
+							break
+									
+			if opts['-m']:
+				print D
+			
+			if opts['-e'] or opts['-E']:
+				evalues = []
+				for a in attr_list:
+					try:
+						evalues.append(str(eval("D.%s" % a)))
+					except AttributeError:
+						continue
+				
+				if not opts['-r']:
+					print str(evalues).strip("[]")
+			
+			if opts['-r']:
+				if sys.argv[sys.argv.index('-r') + 1] == 'all':
+					mu, sigma, ROI = roi_analyze(D, True)
+				else:
+					mu, sigma, ROI = roi_analyze(D)
+				
+				if opts['-h']:
+					make_histogram(ROI.flatten(), "$Pixel\ Value$", "$Distribution\ of\ Pixel\ Values\ in\ Specified\ ROI$")
+				
+				if opts['-e'] or opts['-E']:
+					evalues.append(mu)
+					evalues.append(sigma)
+					print str(evalues).strip("[]")
+				else:
+					print str(mu) + ", " + str(sigma)
