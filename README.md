@@ -57,4 +57,3 @@ Lastly, xrayinspect was written to fit specific research needs. Although it is a
 		-s
 			Display the specified image(s).
 			
-	xrayinspect was written by Zak Merritt (zfm001@jefferson.edu) using the pydicom package written by darcymason (https://github.com/darcymason).
