@@ -10,7 +10,7 @@ steps over each DICOM file and appends PatientID, ExposureIndex, DeviationIndex,
 
 It is also possible to generate histograms of a region of interest or simply view an image. A secondary purpose of xrayinspect is to be a simple DICOM image viewer, since I am not aware of a DICOM viewer for GNU/Linux.
 
-Lastly, xrayinspect was written to fit my research needs. Although it is a very general tool, it is not intended to be a solution for everyone. However, it is my hope that someone will find xrayinspect useful.
+Lastly, xrayinspect was written to fit specific research needs. Although it is a very general tool, it is not guaranteed to be a solution for everyone, but hopefully it will save someone some trouble.
 
 # Dependencies
 1. Pydicom
