@@ -16,7 +16,7 @@ Lastly, xrayinspect was written to fit my research needs. Although it is a very 
 
 # Usage
 
-Usage: xrayinspect [Options] [Files]
+	Usage: xrayinspect [Options] [Files]
 
 	Options:
 		--help
