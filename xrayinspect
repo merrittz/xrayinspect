@@ -48,7 +48,7 @@ def get_help():
 			Display the specified image(s).
 			
 	xrayinspect was written by Zak Merritt (zfm001@jefferson.edu) using the pydicom package written by darcymason (https://github.com/darcymason).
-	For more information, see readme file.
+	For more information, see documentation.
 	"""
 	print usage
 
