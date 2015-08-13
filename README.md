@@ -39,17 +39,20 @@ Lastly, xrayinspect was written to fit specific research needs. Although it is a
 		-E
 			Equivalent to -e AccessionNumber KVP XRayTubeCurrent TargetExposureIndex ExposureIndex DeviationIndex
 		
-		-h
-			Display a histogram of the specified ROI.
-		
-		-r *kwargs
+		-r [options] [*kwargs]
 			If no argument is given, graphically specify a rectangular ROI. If -e or -E is also used, mean pixel value and
 			standard deviation will be appended to the output data.
 			
 			If the keyword 'all' is used, the entire image will be selected as the ROI.
-			
+		
+		--clip
+			Use with -r to save an image cropped to the selected ROI.
+		
 		--fixed-size
 			Use with -r to specify square ROIs of constant size.
+		
+		-h
+			Use with -r to display a histogram of the selected ROI.
 		
 		-m
 			Write out the raw metadata. This is often messy and it is recommended to use -a instead or pipe to grep.
