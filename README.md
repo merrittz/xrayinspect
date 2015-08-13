@@ -45,14 +45,14 @@ Lastly, xrayinspect was written to fit specific research needs. Although it is a
 			
 			If the keyword 'all' is used, the entire image will be selected as the ROI.
 		
-		--clip
-			Use with -r to save an image cropped to the selected ROI.
+			--clip
+				Use with -r to save an image cropped to the selected ROI.
 		
-		--fixed-size
-			Use with -r to specify square ROIs of constant size.
+			--fixed-size
+				Use with -r to specify square ROIs of constant size.
 		
-		-h
-			Use with -r to display a histogram of the selected ROI.
+			-h
+				Use with -r to display a histogram of the selected ROI.
 		
 		-m
 			Write out the raw metadata. This is often messy and it is recommended to use -a instead or pipe to grep.
